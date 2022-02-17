@@ -38,7 +38,9 @@ ui <- fluidPage(
         mainPanel(
            p("Both graphs show the same data; the top plot is interactive while the bottom plot is static."),
            plotlyOutput("NOAAComparisonPlot"),
-           plotOutput("NOAAComparisonStatic")
+           plotOutput("NOAAComparisonStatic"),
+           p("NOTE: the table will only show data if you have both the NOAA 2017 and NOAA 2022 scenarios selected. If you want to copy the table to excel, you have to go through a few steps. What worked for me is to highlight the data you want, copy it, open Notepad, paste into Notepad. Then copy what you have in Notepad and paste into Excel."),
+           dataTableOutput("NOAAComparisonTable")
         )
     )
 )
@@ -130,6 +132,15 @@ server <- function(input, output) {
             labs(x = "Year", y = "SLR in meters since 2000", lintype = "Publication") +
             theme_cowplot() +
             background_grid(major = "xy", minor = "y")
+    })
+    
+    output$NOAAComparisonTable <- renderDataTable({
+        plot_data_fxn() %>% 
+            select(Site, Scenario, Year = year, SLR_since_2000_m, pub) %>%
+            pivot_wider(names_from = "pub", values_from = c("SLR_since_2000_m")) %>%
+            rename(NOAA_2017_SLR_since_2000_m = `NOAA 2017`,
+                   NOAA_2022_SLR_since_2000_m = `NOAA 2022`) %>%
+            arrange(Site, Scenario, Year)
     })
 }
 
