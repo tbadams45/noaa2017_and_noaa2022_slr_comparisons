@@ -14,6 +14,7 @@ library(htmltools)
 library(ggthemes)
 library(cowplot)
 library(plotly)
+library(periscope)
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -38,7 +39,10 @@ ui <- fluidPage(
         mainPanel(
            p("Both graphs show the same data; the top plot is interactive while the bottom plot is static."),
            plotlyOutput("NOAAComparisonPlot"),
-           plotOutput("NOAAComparisonStatic")
+           downloadablePlotUI("NOAAComparisonStatic",
+                              downloadtypes = c("png", "csv"),
+                              download_hovertext = "Download the plot and associated data here.",
+                              btn_halign = "left")
         )
     )
 )
@@ -47,7 +51,8 @@ ui <- fluidPage(
 server <- function(input, output) {
     
     gage_data <- read_csv("./data/gages_and_grid_cells.csv") %>%
-        filter(Site != "GMSL")
+        filter(Site != "GMSL") %>%
+        filter(is.na(str_locate(Site, "grid")))
     
     noaa2017_data <- read_csv("./data/techrpt083_data_as_readable_table.csv") %>%
         select(-PSMSL_ID, -Latitude, -Longitude, -Background_RSL_rate_mm_per_yr, -RSL_2120_cm, -RSL_2150_cm, -RSL_2200_cm) %>%
@@ -100,31 +105,42 @@ server <- function(input, output) {
             addMarkers(data = gage_data, popup = ~htmlEscape(Site))
     })
     
+    plot_data_fxn <- function() {
+        return(all_data %>% filter(((Site == input$SiteID) | (str_replace(input$SiteID, " ", "_") == Site)), 
+                                   pub %in% input$pubsToPlot,
+                                   Scenario %in% input$ScenToPlot))
+    }
+    
     output$NOAAComparisonPlot <- renderPlotly({
         ggplotly(
-            ggplot(all_data %>% filter(Site == input$SiteID, 
-                                       pub %in% input$pubsToPlot,
-                                       Scenario %in% input$ScenToPlot), aes(year, SLR_since_2000_m, color = Scenario, linetype = pub)) +
+            ggplot(plot_data_fxn(), aes(year, SLR_since_2000_m, color = Scenario, linetype = pub)) +
                 geom_line(size = 1) +
                 scale_y_continuous(limits = c(0, 3)) +
                 scale_x_continuous(limits = c(2000, 2100), breaks = seq(2000, 2100, by = 10)) +
                 scale_linetype_manual(values = c("NOAA 2017" = "dashed", "NOAA 2022" = "solid")) +
                 labs(x = "Year", y = "SLR in meters since 2000", lintype = "Publication") +
-                theme_cowplot()
+                theme_cowplot() +
+                background_grid(major = "xy", minor = "y")
         )
     })
     
-    output$NOAAComparisonStatic <- renderPlot({
-        ggplot(all_data %>% filter(Site == input$SiteID, 
-                                   pub %in% input$pubsToPlot,
-                                   Scenario %in% input$ScenToPlot), aes(year, SLR_since_2000_m, color = Scenario, linetype = pub)) +
+    static_plot_fxn <- function() {
+        ggplot(static_data_fxn(), aes(year, SLR_since_2000_m, color = Scenario, linetype = pub)) +
             geom_line(size = 1) +
             scale_y_continuous(limits = c(0, 3)) +
             scale_x_continuous(limits = c(2000, 2100), breaks = seq(2000, 2100, by = 10)) +
             scale_linetype_manual(values = c("NOAA 2017" = "dashed", "NOAA 2022" = "solid")) +
             labs(x = "Year", y = "SLR in meters since 2000", lintype = "Publication") +
-            theme_cowplot()
-    })
+            theme_cowplot() +
+            background_grid(major = "xy", minor = "y")
+    }
+    
+
+    output$NOAAComparisonStatic <- downloadablePlot("NOAAComparisonStatic",
+                                                    filenameroot = "NOAA2017_and_2022_SLR_comparison",
+                                                    aspectratio = 1.33, 
+                                                    downloadfxns = list(png = static_plot_fxn, csv = static_data_fxn),
+                                                    visibleplot = static_plot_fxc)
 }
 
 # Run the application 
