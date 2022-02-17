@@ -14,7 +14,6 @@ library(htmltools)
 library(ggthemes)
 library(cowplot)
 library(plotly)
-library(periscope)
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -39,10 +38,7 @@ ui <- fluidPage(
         mainPanel(
            p("Both graphs show the same data; the top plot is interactive while the bottom plot is static."),
            plotlyOutput("NOAAComparisonPlot"),
-           downloadablePlotUI("NOAAComparisonStatic",
-                              downloadtypes = c("png", "csv"),
-                              download_hovertext = "Download the plot and associated data here.",
-                              btn_halign = "left")
+           plotOutput("NOAAComparisonStatic")
         )
     )
 )
@@ -124,8 +120,9 @@ server <- function(input, output) {
         )
     })
     
-    static_plot_fxn <- function() {
-        ggplot(static_data_fxn(), aes(year, SLR_since_2000_m, color = Scenario, linetype = pub)) +
+
+    output$NOAAComparisonStatic <- renderPlot({
+        ggplot(plot_data_fxn(), aes(year, SLR_since_2000_m, color = Scenario, linetype = pub)) +
             geom_line(size = 1) +
             scale_y_continuous(limits = c(0, 3)) +
             scale_x_continuous(limits = c(2000, 2100), breaks = seq(2000, 2100, by = 10)) +
@@ -133,14 +130,7 @@ server <- function(input, output) {
             labs(x = "Year", y = "SLR in meters since 2000", lintype = "Publication") +
             theme_cowplot() +
             background_grid(major = "xy", minor = "y")
-    }
-    
-
-    output$NOAAComparisonStatic <- downloadablePlot("NOAAComparisonStatic",
-                                                    filenameroot = "NOAA2017_and_2022_SLR_comparison",
-                                                    aspectratio = 1.33, 
-                                                    downloadfxns = list(png = static_plot_fxn, csv = static_data_fxn),
-                                                    visibleplot = static_plot_fxc)
+    })
 }
 
 # Run the application 
