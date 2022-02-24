@@ -30,7 +30,7 @@ ui <- fluidPage(
                                selected = c("Low", "Intermediate Low", "Intermediate", "Intermediate High", "High")),
             textInput("SiteID",
                         "Site ID (find by panning the map and clicking the location you want - note that this is case sensitive.):",
-                        value = "BOSTON"),
+                        value = "235"),
             leafletOutput("mymap")
         ),
 
@@ -53,7 +53,7 @@ server <- function(input, output) {
         filter(is.na(str_locate(Site, "grid")))
     
     noaa2017_data <- read_csv("./data/techrpt083_data_as_readable_table.csv") %>%
-        select(-PSMSL_ID, -Latitude, -Longitude, -Background_RSL_rate_mm_per_yr, -RSL_2120_cm, -RSL_2150_cm, -RSL_2200_cm) %>%
+        select(-Latitude, -Longitude, -Background_RSL_rate_mm_per_yr, -RSL_2120_cm, -RSL_2150_cm, -RSL_2200_cm) %>%
         pivot_longer(cols = contains("RSL"), names_to = "year_text", values_to = "SLR_since_2000_cm") %>%
         mutate(year = as.integer(str_extract(year_text, "[0-9]+"))) %>%
         mutate(SLR_since_2000_m = SLR_since_2000_cm / 100) %>%
@@ -68,6 +68,7 @@ server <- function(input, output) {
     
     noaa2022_data <- read_csv("./data/SLR_TF U.S. Sea Level Projections_NOAA_2022_readable_table.csv") %>%
         select(Site = `PSMSL Site`, 
+               PSMSL_ID = `PSMSL ID`,
                Scenario, 
                offset_2000_to_2005_cm = `Offset 2000 to 2005 (cm)`, 
                RSL2005_cm = `RSL2005 (cm)`, 
@@ -100,13 +101,16 @@ server <- function(input, output) {
         leaflet() %>%
             addProviderTiles(providers$Stamen.TonerLite,
                              options = providerTileOptions(noWrap = TRUE)) %>%
-            addMarkers(data = gage_data, popup = ~htmlEscape(Site))
+            addMarkers(data = gage_data, popup = ~paste0(Site, ": ", PSMSL_ID))
     })
     
     plot_data_fxn <- function() {
-        return(all_data %>% filter(((Site == input$SiteID) | (str_replace(input$SiteID, " ", "_") == Site)), 
+        return(all_data %>% filter(PSMSL_ID == as.double(input$SiteID), 
                                    pub %in% input$pubsToPlot,
                                    Scenario %in% input$ScenToPlot))
+        # return(all_data %>% filter(((Site == input$SiteID) | (str_replace(input$SiteID, " ", "_") == Site)), 
+        #                            pub %in% input$pubsToPlot,
+        #                            Scenario %in% input$ScenToPlot))
     }
     
     output$NOAAComparisonPlot <- renderPlotly({
